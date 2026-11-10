@@ -212,8 +212,9 @@ function pushState() {
 }
 function pushRowHtml() {
   const st = pushState();
-  if (st === 'on') return `<button class="wide" data-act="push-off">🔔 Notifications on · Turn off</button><button class="wide" data-act="push-test-info">How they work</button>`;
-  if (st === 'off') return `<button class="wide primary" data-act="push-on">🔔 Turn on notifications</button>`;
+  // one toggle: blue = on, plain = off; tap to flip
+  if (st === 'on') return `<button class="wide primary" data-act="push-off" aria-pressed="true">🔔 Notifications on</button><button class="wide" data-act="push-test-info">How they work</button>`;
+  if (st === 'off') return `<button class="wide" data-act="push-on" aria-pressed="false">🔕 Notifications off</button>`;
   if (st === 'install') return `<div class="note small">To get notifications on iPhone, add IFPM to your Home Screen first (Share button → <b>Add to Home Screen</b>), then open it from there.</div>`;
   if (st === 'denied') return `<div class="note small">Notifications are blocked for IFPM. Turn them on in your phone's Settings → Notifications → IFPM, then come back here.</div>`;
   return `<div class="note small">This browser can't show notifications. On iPhone use Safari, on Android use Chrome.</div>`;
