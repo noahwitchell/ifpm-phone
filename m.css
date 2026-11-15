@@ -254,3 +254,15 @@ details summary { font-size: 12.5px; color: var(--accent); margin-top: 4px; }
   padding: 10px 12px; border-radius: 12px; background: var(--surface, #fff); box-shadow: 0 6px 24px rgba(0,0,0,.25); font-size: 14px; }
 .pushnudge span { flex: 1 1 180px; }
 .note { padding: 8px 10px; border-radius: 8px; background: var(--surface2, rgba(127,127,127,.12)); margin: 6px 0; line-height: 1.4; }
+
+/* emoji reactions */
+.rxrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rxp { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 10px; border-radius: 15px; border: 1px solid var(--line); background: var(--surface2); font-size: 15px; }
+.rxp b { font-size: 12px; font-weight: 600; color: var(--muted); }
+.rxp.mine { border-color: var(--accent); background: var(--accent-soft, rgba(80,130,255,.15)); }
+.rxp.mine b { color: var(--accent); }
+.rxbtn { height: 30px; min-width: 40px; padding: 0 8px; border-radius: 15px; border: 1px solid var(--line); background: none; color: var(--muted); font-size: 16px; }
+.rxbtn small { font-size: 11px; }
+.rxpick { display: inline-flex; gap: 2px; padding: 2px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface2); }
+.rxpick button { border: 0; background: none; font-size: 22px; width: 40px; height: 36px; border-radius: 16px; padding: 0; }
+.rxp, .rxpick button { font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }

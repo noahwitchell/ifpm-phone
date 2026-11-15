@@ -685,6 +685,14 @@ function composerHtml(key, placeholder) {
       ${key === 'top' ? `<label class="imp"><input type="checkbox" id="upd-imp" ${d.important ? 'checked' : ''}> Important</label>` : ''}
       <span class="spacer"></span>${key !== 'top' ? '<button class="ghost small" data-act="reply-cancel">Cancel</button>' : ''}<button class="primary small" data-act="post" data-key="${esc(key)}">Post</button></div></div>`;
 }
+// Emoji reactions (same records as the desktop app: one per person + emoji + note).
+const REACTS = ['❤️', '👍', '👀', '💯', '🔥'];
+function rxHtml(p, uid) {
+  const rs = S(p).list('rx').filter(r => r.upd === uid);
+  const pills = REACTS.map(e => { const who = rs.filter(r => r.e === e).map(r => r.who); return who.length ? `<button class="rxp ${who.includes(me.name) ? 'mine' : ''}" data-act="rx" data-id="${esc(uid)}" data-e="${e}">${e}<b>${who.length}</b></button>` : ''; }).join('');
+  const open = ui.rxOpen === uid;
+  return `<div class="rxrow">${pills}${open ? `<span class="rxpick">${REACTS.map(e => `<button data-act="rx" data-id="${esc(uid)}" data-e="${e}">${e}</button>`).join('')}</span>` : `<button class="rxbtn" data-act="rx-open" data-id="${esc(uid)}" aria-label="React">☺<small>+</small></button>`}</div>`;
+}
 function updatesHtml(p, it, allU) {
   const acks = id => S(p).list('ack').filter(a => a.upd === id).map(a => a.who);
   const one = (u, isReply) => {
@@ -696,6 +704,7 @@ function updatesHtml(p, it, allU) {
       ${u.important ? `<div class="impbar"><b>Important</b>${needAck ? `<button class="primary tiny" data-act="ack" data-id="${esc(u.id)}">Got it</button>` : ''}<span class="small">${a.length ? 'Seen by ' + a.map(esc).join(', ') : 'Not acknowledged yet'}</span></div>` : ''}
       ${u.text ? `<div class="ut">${linkify(u.text)}</div>` : ''}
       ${(u.files || []).length || (u.refs || []).length ? `<div class="thumbs">${(u.files || []).map(f => mediaThumb(p, f, true)).join('')}${(u.refs || []).map(f => mediaThumb(p, f, false)).join('')}</div>` : ''}
+      ${rxHtml(p, u.id)}
     </div>`;
   };
   const tops = allU.filter(u => !u.parent).sort((a, b) => b._at - a._at);
@@ -885,6 +894,13 @@ document.addEventListener('click', async e => {
     }
     case 'del-upd': if (!confirm('Delete this update?')) return; return write(p, 'upd', d.id, { deleted: true });
     case 'ack': return write(p, 'ack', d.id + '|' + me.id, { upd: d.id, who: me.name }, { noUndo: true });
+    case 'rx-open': saveDraft(); ui.rxOpen = d.id; return renderSheet(), hydrate();
+    case 'rx': {
+      if (!REACTS.includes(d.e)) return;
+      ui.rxOpen = null;
+      const id = d.id + '|' + d.e + '|' + me.id, on = !!S(p).get('rx', id);
+      return write(p, 'rx', id, on ? { deleted: true } : { upd: d.id, e: d.e, who: me.name, deleted: false }, { noUndo: true });
+    }
     case 'dir-save': { const v = $('#dir-text').value.trim(); await write(p, 'item', ui.item, { direction: v || null }); return toast('Direction saved', true); }
     case 'view': return viewImage(t.src);
     case 'play': return playVideo(d.src, d.board === '1');
