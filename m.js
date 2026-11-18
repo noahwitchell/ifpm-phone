@@ -40,6 +40,23 @@ function ago(ts) {
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 function linkify(t) { return esc(t).replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" target="_blank" rel="noopener">${/dropbox\.com/i.test(u) ? '📦 ' + esc(decodeURIComponent(u.replace(/&amp;/g, '&').split('?')[0].split('/').pop() || 'Dropbox link')) : u}</a>`).replace(/\n/g, '<br>'); }
+
+// @tags in a note: names that match someone on the board (the same rule that sends the
+// notification) are drawn as a coloured pill, so the writer can see the tag worked.
+function tagify(p, html) {
+  if (!html.includes('@')) return html;
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const keys = [];
+  for (const n of people(p)) { keys.push([esc(n).toLowerCase(), n]); keys.push([esc(n.split(' ')[0]).toLowerCase(), n]); }
+  if (!keys.length) return html;
+  keys.sort((a, b) => b[0].length - a[0].length);
+  const re = new RegExp('@(' + keys.map(k => reEsc(k[0])).join('|') + ')(?![\\w])', 'gi');
+  let inA = 0;
+  return html.split(/(<[^>]+>)/).map((seg, i) => {
+    if (i % 2) { if (/^<a[\s>]/i.test(seg)) inA++; else if (/^<\/a>/i.test(seg)) inA = Math.max(0, inA - 1); return seg; }
+    return inA ? seg : seg.replace(re, (m, k) => { const n = keys.find(x => x[0] === k.toLowerCase())[1]; return `<span class="mtag${n === me.name ? ' me' : ''}" title="Tagged: ${esc(n)}">${m}</span>`; });
+  }).join('');
+}
 // Countdown colour (same steps as desktop): calm blue a week out, warming to red on the day.
 function dueColor(date, done, tone) {
   if (!date) return null;
@@ -702,7 +719,7 @@ function updatesHtml(p, it, allU) {
       <div class="uh">${av(S(p).name(u._by), 'sm')}<b>${esc(S(p).name(u._by))}</b>${sub ? `<span class="chip">${esc(sub.name)}</span>` : ''}<span class="faint small">${esc(ago(u._at))}</span>
         ${isMe(p, u._by) ? `<span class="spacer"></span><button class="ghost tiny" data-act="del-upd" data-id="${esc(u.id)}">Delete</button>` : ''}</div>
       ${u.important ? `<div class="impbar"><b>Important</b>${needAck ? `<button class="primary tiny" data-act="ack" data-id="${esc(u.id)}">Got it</button>` : ''}<span class="small">${a.length ? 'Seen by ' + a.map(esc).join(', ') : 'Not acknowledged yet'}</span></div>` : ''}
-      ${u.text ? `<div class="ut">${linkify(u.text)}</div>` : ''}
+      ${u.text ? `<div class="ut">${tagify(p, linkify(u.text))}</div>` : ''}
       ${(u.files || []).length || (u.refs || []).length ? `<div class="thumbs">${(u.files || []).map(f => mediaThumb(p, f, true)).join('')}${(u.refs || []).map(f => mediaThumb(p, f, false)).join('')}</div>` : ''}
       ${rxHtml(p, u.id)}
     </div>`;
