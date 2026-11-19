@@ -910,7 +910,7 @@ document.addEventListener('click', async e => {
       return toast('Posted');
     }
     case 'del-upd': if (!confirm('Delete this update?')) return; return write(p, 'upd', d.id, { deleted: true });
-    case 'ack': return write(p, 'ack', d.id + '|' + me.id, { upd: d.id, who: me.name }, { noUndo: true });
+    case 'ack': return write(p, 'ack', d.id + '|' + me.id, { upd: d.id, who: me.name, deleted: false }, { noUndo: true });
     case 'rx-open': saveDraft(); ui.rxOpen = d.id; return renderSheet(), hydrate();
     case 'rx': {
       if (!REACTS.includes(d.e)) return;

@@ -1,6 +1,6 @@
 // IFPM phone: keep the app itself available offline, and show notifications sent by the team's sender computer.
 // Board data always comes fresh from Dropbox.
-const CACHE = 'ifpm-phone-mwmeunfs';
+const CACHE = 'ifpm-phone-mwnd3xzd';
 const SHELL = ['./', 'index.html', 'm.css', 'm.js', 'backend.js', 'state.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== 'ifpm-badge').map(k => caches.delete(k)))).then(() => self.clients.claim())); });
@@ -20,11 +20,13 @@ async function badge(change) {
   await c.put('n', new Response(String(n)));
   try { if (n) await self.navigator.setAppBadge(n); else await self.navigator.clearAppBadge(); } catch { }
 }
+// No tag: on iPhone a notification that replaces an earlier one with the same tag arrives silently,
+// so each one stands alone and buzzes.
 self.addEventListener('push', e => {
   let d = {};
   try { d = e.data.json(); } catch { d = { title: 'IFPM', body: e.data ? e.data.text() : '' }; }
   e.waitUntil(Promise.all([
-    self.registration.showNotification(d.title || 'IFPM', { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', tag: d.tag || undefined, renotify: !!d.tag, timestamp: d.ts || Date.now(), data: { board: d.board || '', item: d.item || '' } }),
+    self.registration.showNotification(d.title || 'IFPM', { body: d.body || '', icon: 'icon-192.png', badge: 'icon-192.png', timestamp: d.ts || Date.now(), data: { board: d.board || '', item: d.item || '' } }),
     badge('add'),
   ]));
 });
