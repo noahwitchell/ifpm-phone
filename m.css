@@ -222,7 +222,21 @@ details summary { font-size: 12.5px; color: var(--accent); margin-top: 4px; }
 .welcome h1 { font-size: 34px; margin: 10px 0; }
 .welcome p { color: var(--muted); }
 .welcome input { margin: 14px 0; text-align: center; }
+.wholist { display: flex; flex-direction: column; gap: 8px; margin: 18px 0; max-height: 46vh; overflow-y: auto; text-align: left; }
+.whoname { padding: 13px 16px; font-size: 17px; border-radius: 12px; text-align: left; }
+.whoname.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); font-weight: 600; }
+.whoname.on::after { content: '✓'; float: right; color: var(--accent); }
+.whoami #who-filter { margin: 12px 0 0; text-align: left; }
+#who-new { margin-top: 10px; }
+button.big:disabled { opacity: .45; }
 .welcome .err { color: var(--red); }
+.install h2 { margin: 12px 0 6px; }
+.isteps { list-style: none; padding: 0; margin: 22px 0 0; text-align: left; }
+.isteps li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; margin: 8px 0; border-radius: 12px; background: var(--surface2, rgba(127,127,127,.12)); line-height: 1.4; }
+.inum { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; }
+.iico { display: inline-flex; vertical-align: -4px; color: var(--accent); }
+.iarrow { font-size: 34px; color: var(--accent); margin-top: 14px; animation: ibob 1.2s ease-in-out infinite; }
+@keyframes ibob { 50% { transform: translateY(8px); } }
 .bigicon { width: 84px; height: 84px; border-radius: 20px; }
 #codebox { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .bcard { cursor: pointer; }

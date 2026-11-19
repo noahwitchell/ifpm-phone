@@ -232,7 +232,7 @@ function pushRowHtml() {
   // one toggle: blue = on, plain = off; tap to flip
   if (st === 'on') return `<button class="wide primary" data-act="push-off" aria-pressed="true">🔔 Notifications on</button><button class="wide" data-act="push-test-info">How they work</button>`;
   if (st === 'off') return `<button class="wide" data-act="push-on" aria-pressed="false">🔕 Notifications off</button>`;
-  if (st === 'install') return `<div class="note small">To get notifications on iPhone, add IFPM to your Home Screen first (Share button → <b>Add to Home Screen</b>), then open it from there.</div>`;
+  if (st === 'install') return `<div class="note small">To get notifications on iPhone, add IFPM to your Home Screen first, then open it from there.</div><button class="wide" data-act="inst-show">Show me how</button>`;
   if (st === 'denied') return `<div class="note small">Notifications are blocked for IFPM. Turn them on in your phone's Settings → Notifications → IFPM, then come back here.</div>`;
   return `<div class="note small">This browser can't show notifications. On iPhone use Safari, on Android use Chrome.</div>`;
 }
@@ -323,6 +323,7 @@ async function boot() {
     history.replaceState(null, '', location.pathname);
     try { await be.finishSignIn(q.get('code')); } catch (e) { return screenSignIn(String(e.message || e)); }
   }
+  if (needsInstall()) return screenInstall();
   if (be.kind === 'dropbox' && !CFG.DROPBOX_APP_KEY && !LS.get('dbxHosts', null)) return screenMsg('Almost ready', 'This page isn’t connected to the team’s Dropbox app yet (no app key in config.js).');
   if (!be.signedIn) return screenSignIn();
   if (!me) return screenName();
@@ -365,14 +366,80 @@ function screenSignIn(err) {
     <p class="small muted" style="margin-top:22px">Sign-in didn’t come back to IFPM? <a href="#" data-act="signin-code">Use a code instead</a></p>
     <div id="codebox" class="hidden"><input id="code-in" placeholder="Paste the code from Dropbox" autocomplete="off"><button class="primary" data-act="code-go">Continue</button></div></div>`;
 }
+// Pick your name from the people already on the boards, so the phone lines up with your computer
+// (typing it freely made duplicates, e.g. "Artun" on the desktop and "Artun G" on the phone).
+let prevMe = null;                                    // set by "Change my name" so the same name keeps its id
 async function screenName() {
   $('#top').innerHTML = ''; $('#tabs').innerHTML = '';
+  $('#main').innerHTML = '<div class="loading">Looking up the team…</div>';
   let guess = '';
   try { guess = (await be.account()).name || ''; } catch { }
-  $('#main').innerHTML = `<div class="welcome"><h2>Who are you?</h2>
-    <p>Use the same name you use in IFPM on your computer, so your work, mentions and notifications line up.</p>
-    <input id="me-name" value="${esc(guess)}" placeholder="e.g. Noah Witchell" autocomplete="name">
-    <button class="primary big" data-act="me-save">Continue</button></div>`;
+  const names = new Set();
+  try {
+    if (!projects.length) projects = (await be.listProjects()).filter(x => x.hasBoard);
+    for (const pr of projects) {
+      try { if (!stores[pr.path]) await loadBoard(pr.path, true); } catch { continue; }
+      for (const n of settings(pr.path).people || []) names.add(String(n).trim());
+      for (const u of S(pr.path).users()) names.add(String(u.name || '').trim());
+    }
+  } catch { }
+  const list = [...names].filter(n => n && n !== 'Sample data').sort((a, b) => a.localeCompare(b));
+  const g = guess.toLowerCase(), g1 = g.split(' ')[0];
+  const pre = (prevMe && list.includes(prevMe.name) && prevMe.name) || list.find(n => n.toLowerCase() === g) || (g1 && list.filter(n => n.toLowerCase().split(' ')[0] === g1).length === 1 ? list.find(n => n.toLowerCase().split(' ')[0] === g1) : '');
+  if (!list.length) {
+    $('#main').innerHTML = `<div class="welcome"><h2>Who are you?</h2>
+      <p>Use the same name you use in IFPM on your computer, so your work, mentions and notifications line up.</p>
+      <input id="me-name" value="${esc(guess)}" placeholder="e.g. Noah Witchell" autocomplete="name">
+      <button class="primary big" data-act="me-save">Continue</button></div>`;
+    return;
+  }
+  $('#main').innerHTML = `<div class="welcome whoami"><h2>Who are you?</h2>
+    <p>Tap your name. It's the same you on your computer, so your work, mentions and notifications line up.</p>
+    ${list.length > 8 ? '<input id="who-filter" placeholder="Search names" autocomplete="off">' : ''}
+    <div class="wholist">${list.map(n => `<button class="whoname ${n === pre ? 'on' : ''}" data-act="who-pick" data-name="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+    <button class="primary big" data-act="who-go" ${pre ? '' : 'disabled'}>Continue${pre ? ' as ' + esc(pre.split(' ')[0]) : ''}</button>
+    <p class="small muted" style="margin-top:18px"><a href="#" data-act="who-other">I'm not on the list</a></p>
+    <div id="who-new" class="hidden"><p class="small">Type your name exactly as it is in IFPM on your computer.</p>
+      <input id="me-name" placeholder="e.g. Noah Witchell" autocomplete="name"><button class="primary" data-act="me-save">Continue</button></div></div>`;
+}
+function setMe(n) {
+  me = { id: (prevMe && prevMe.name === n ? prevMe.id : safeName(n) + '_phone_' + Math.random().toString(36).slice(2, 6)), name: n };
+  prevMe = null; LS.set('me', me); return boot();
+}
+
+// ---------- add to Home Screen ----------
+// Opened in the phone's browser instead of from its Home Screen icon: walk them through installing it first.
+// (On iPhone the Home Screen app has its own storage, so signing in inside Safari would be wasted, and only
+// the Home Screen app can get notifications.) "Use it in the browser" skips it until the next visit.
+const isAndroid = /Android/.test(navigator.userAgent);
+const iosOtherBrowser = () => isIOS && /CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(navigator.userAgent);
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if ($('#inst-go')) $('#inst-go').classList.remove('hidden'); });
+function needsInstall() {
+  if (standalone() || !(isIOS || isAndroid)) return false;
+  try { return !sessionStorage.getItem('skipInstall'); } catch { return true; }
+}
+const SHARE_ICO = '<svg viewBox="0 0 16 16" width="18" height="18"><path d="M8 1.5v9M4.8 4.6 8 1.5l3.2 3.1M3.5 7.5H3v7h10v-7h-.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ADD_ICO = '<svg viewBox="0 0 16 16" width="18" height="18"><rect x="2" y="2" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v6M5 8h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+function screenInstall() {
+  $('#top').innerHTML = ''; $('#tabs').innerHTML = '';
+  let steps;
+  if (iosOtherBrowser()) steps = `<p>This needs <b>Safari</b>. Copy the link, open Safari and paste it in the address bar.</p>
+    <button class="primary big" data-act="inst-copy">Copy link</button>`;
+  else if (isIOS) steps = `<ol class="isteps">
+      <li><span class="inum">1</span><div>Tap the <b>Share</b> button <span class="iico">${SHARE_ICO}</span> in Safari's toolbar${/iPad/.test(navigator.userAgent) ? ' (top right)' : ' at the bottom of the screen'}.</div></li>
+      <li><span class="inum">2</span><div>Scroll down and tap <b>Add to Home Screen</b> <span class="iico">${ADD_ICO}</span>, then <b>Add</b>.</div></li>
+      <li><span class="inum">3</span><div>Close Safari and open <b>IFPM</b> from the new icon on your Home Screen.</div></li></ol>
+    <div class="iarrow" aria-hidden="true">↓</div>`;
+  else steps = `<button id="inst-go" class="primary big ${installEvt ? '' : 'hidden'}" data-act="inst-go">Install IFPM</button>
+    <ol class="isteps">
+      <li><span class="inum">1</span><div>Tap <b>⋮</b> at the top right of Chrome.</div></li>
+      <li><span class="inum">2</span><div>Tap <b>Install app</b> or <b>Add to Home screen</b>, then <b>Install</b>.</div></li>
+      <li><span class="inum">3</span><div>Open <b>IFPM</b> from the new icon.</div></li></ol>`;
+  $('#main').innerHTML = `<div class="welcome install"><img class="bigicon" src="icon-192.png" alt=""><h2>Add IFPM to your Home Screen</h2>
+    <p>Then it opens like an app and can buzz you when something needs you. Notifications only work from the Home Screen icon.</p>
+    ${steps}
+    <p class="small muted" style="margin-top:26px"><a href="#" data-act="inst-skip">Use it in the browser for now</a></p></div>`;
 }
 
 // ---------- render ----------
@@ -845,22 +912,36 @@ async function playVideo(rel, inBoard) {
 }
 
 // ---------- actions ----------
+document.addEventListener('input', e => {
+  if (e.target.id !== 'who-filter') return;
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.whoname').forEach(b => { b.hidden = !!q && !b.dataset.name.toLowerCase().includes(q); });
+});
 document.addEventListener('click', async e => {
   const t = e.target.closest('[data-act]');
   if (!t) { if (e.target.id === 'pick') hidePick(); return; }
   const d = t.dataset, p = cur;
   switch (d.act) {
     case 'reload': return location.reload();
+    case 'inst-skip': e.preventDefault(); try { sessionStorage.setItem('skipInstall', '1'); } catch { } return projects.length ? render() : boot();
+    case 'inst-show': closeSheet(); return screenInstall();
+    case 'inst-copy': try { await navigator.clipboard.writeText(location.origin + location.pathname); toast('Link copied. Paste it in Safari.'); } catch { toast(location.origin + location.pathname); } return;
+    case 'inst-go': if (installEvt) { installEvt.prompt(); installEvt = null; } return;
     case 'signin': return be.startSignIn(false);
     case 'signin-code': e.preventDefault(); $('#codebox').classList.remove('hidden'); return be.startSignIn(true);
     case 'code-go': { const c = $('#code-in').value.trim(); if (!c) return; try { await be.finishSignIn(c); boot(); } catch (err) { screenSignIn(String(err.message || err)); } return; }
     case 'me-save': {
       const n = $('#me-name').value.trim().replace(/\s+/g, ' ');
       if (!n) return;
-      me = { id: (me && me.name === n ? me.id : safeName(n) + '_phone_' + Math.random().toString(36).slice(2, 6)), name: n };
-      LS.set('me', me); return boot();
+      return setMe(n);
     }
-    case 'rename-me': hidePick(); me = null; LS.del('me'); return screenName();
+    case 'who-pick': {
+      document.querySelectorAll('.whoname.on').forEach(x => x.classList.remove('on')); t.classList.add('on');
+      const go = $('[data-act="who-go"]'); go.disabled = false; go.textContent = 'Continue as ' + d.name.split(' ')[0]; return;
+    }
+    case 'who-go': { const on = $('.whoname.on'); if (on) return setMe(on.dataset.name); return; }
+    case 'who-other': e.preventDefault(); $('#who-new').classList.remove('hidden'); $('#me-name').focus(); return;
+    case 'rename-me': hidePick(); prevMe = me; me = null; LS.del('me'); return screenName();
     case 'signout': hidePick(); be.signOut(); LS.del('me'); me = null; return screenSignIn();
     case 'root-save': be.root = $('#dbx-root').value.trim().replace(/\/+$/, ''); if (be.root && !be.root.startsWith('/')) be.root = '/' + be.root; LS.set('dbxRoot', be.root); hidePick(); return location.reload();
     case 'menu': return settingsSheet();
