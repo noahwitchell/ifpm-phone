@@ -788,7 +788,7 @@ function composerHtml(key, placeholder) {
       <span class="spacer"></span>${key !== 'top' ? '<button class="ghost small" data-act="reply-cancel">Cancel</button>' : ''}<button class="primary small" data-act="post" data-key="${esc(key)}">Post</button></div></div>`;
 }
 // Emoji reactions (same records as the desktop app: one per person + emoji + note).
-const REACTS = ['❤️', '👍', '👀', '💯', '🔥'];
+const REACTS = ['❤️', '👍', '✅', '👀', '💯', '🔥'];
 function rxHtml(p, uid) {
   const rs = S(p).list('rx').filter(r => r.upd === uid);
   const pills = REACTS.map(e => { const who = rs.filter(r => r.e === e).map(r => r.who); return who.length ? `<button class="rxp ${who.includes(me.name) ? 'mine' : ''}" data-act="rx" data-id="${esc(uid)}" data-e="${e}">${e}<b>${who.length}</b></button>` : ''; }).join('');
