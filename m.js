@@ -402,9 +402,18 @@ async function screenName() {
     <div id="who-new" class="hidden"><p class="small">Type your name exactly as it is in IFPM on your computer.</p>
       <input id="me-name" placeholder="e.g. Noah Witchell" autocomplete="name"><button class="primary" data-act="me-save">Continue</button></div></div>`;
 }
-function setMe(n) {
-  me = { id: (prevMe && prevMe.name === n ? prevMe.id : safeName(n) + '_phone_' + Math.random().toString(36).slice(2, 6)), name: n };
-  prevMe = null; LS.set('me', me); return boot();
+// A rename keeps this phone's id (so it doesn't leave a second copy of the person behind); its notification
+// registration is named after the person, so the old one is removed and re-made under the new name.
+async function setMe(n) {
+  const old = prevMe; prevMe = null;
+  me = { id: old ? old.id : safeName(n) + '_phone_' + Math.random().toString(36).slice(2, 6), name: n };
+  LS.set('me', me);
+  if (old && old.name !== n) {
+    const was = LS.get('push', null);
+    for (const pr of projects) await be.pushUnregister(pr.path, safeName(old.name) + '__' + safeName(devId) + '.json');
+    if (was) LS.set('push', Object.assign({}, was, { at: 0 }));          // pushKeepUp re-registers under the new name
+  }
+  return boot();
 }
 
 // ---------- add to Home Screen ----------
