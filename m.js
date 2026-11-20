@@ -39,7 +39,7 @@ function ago(ts) {
   if (s < 86400) return Math.round(s / 3600) + 'h ago'; if (s < 86400 * 6) return Math.round(s / 86400) + 'd ago';
   return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
-function linkify(t) { return esc(t).replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" target="_blank" rel="noopener">${/dropbox\.com/i.test(u) ? '📦 ' + esc(decodeURIComponent(u.replace(/&amp;/g, '&').split('?')[0].split('/').pop() || 'Dropbox link')) : u}</a>`).replace(/\n/g, '<br>'); }
+function linkify(t) { return esc(t).replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" target="_blank" rel="noopener">${/dropbox\.com/i.test(u) ? ic('dropbox') + ' ' + esc(decodeURIComponent(u.replace(/&amp;/g, '&').split('?')[0].split('/').pop() || 'Dropbox link')) : u}</a>`).replace(/\n/g, '<br>'); }
 
 // @tags in a note: names that match someone on the board (the same rule that sends the
 // notification) are drawn as a coloured pill, so the writer can see the tag worked.
@@ -230,8 +230,8 @@ function pushState() {
 function pushRowHtml() {
   const st = pushState();
   // one toggle: blue = on, plain = off; tap to flip
-  if (st === 'on') return `<button class="wide primary" data-act="push-off" aria-pressed="true">🔔 Notifications on</button><button class="wide" data-act="push-test-info">How they work</button>`;
-  if (st === 'off') return `<button class="wide" data-act="push-on" aria-pressed="false">🔕 Notifications off</button>`;
+  if (st === 'on') return `<button class="wide primary" data-act="push-off" aria-pressed="true">${ic('bell')} Notifications on</button><button class="wide" data-act="push-test-info">How they work</button>`;
+  if (st === 'off') return `<button class="wide" data-act="push-on" aria-pressed="false">${ic('belloff')} Notifications off</button>`;
   if (st === 'install') return `<div class="note small">To get notifications on iPhone, add IFPM to your Home Screen first, then open it from there.</div><button class="wide" data-act="inst-show">Show me how</button>`;
   if (st === 'denied') return `<div class="note small">Notifications are blocked for IFPM. Turn them on in your phone's Settings → Notifications → IFPM, then come back here.</div>`;
   return `<div class="note small">This browser can't show notifications. On iPhone use Safari, on Android use Chrome.</div>`;
@@ -311,7 +311,7 @@ function pushNudge() {
   if (LS.get('pushNudged', false) || pushState() !== 'off') return;
   const el = document.createElement('div');
   el.className = 'pushnudge';
-  el.innerHTML = `<span>🔔 Get a ding on this phone when something needs you</span><button class="small primary" data-act="push-on-nudge">Turn on</button><button class="small ghost" data-act="push-nudge-x">Not now</button>`;
+  el.innerHTML = `<span>${ic('bell')} Get a ding on this phone when something needs you</span><button class="small primary" data-act="push-on-nudge">Turn on</button><button class="small ghost" data-act="push-nudge-x">Not now</button>`;
   document.body.appendChild(el);
 }
 const dropNudge = () => { LS.set('pushNudged', true); const n = document.querySelector('.pushnudge'); if (n) n.remove(); };
@@ -416,6 +416,15 @@ async function setMe(n) {
   return boot();
 }
 
+// Brief references (added by admins on the desktop): thumbnails come straight from Dropbox.
+async function fillRefs(p, itemId) {
+  const box = document.getElementById('mrefs-' + itemId); if (!box) return;
+  for (const el of box.querySelectorAll('.mref')) {
+    el.dataset.act = 'mref-open';
+    if (/\.pdf$/i.test(el.dataset.rel)) continue;
+    try { const u = await be.fileUrl(p, el.dataset.rel, true); el.innerHTML = `<img src="${esc(u)}" alt="">`; } catch { }
+  }
+}
 // ---------- add to Home Screen ----------
 // Opened in the phone's browser instead of from its Home Screen icon: walk them through installing it first.
 // (On iPhone the Home Screen app has its own storage, so signing in inside Safari would be wasted, and only
@@ -439,7 +448,7 @@ function screenInstall() {
       <li><span class="inum">1</span><div>Tap the <b>Share</b> button <span class="iico">${SHARE_ICO}</span> in Safari's toolbar${/iPad/.test(navigator.userAgent) ? ' (top right)' : ' at the bottom of the screen'}.</div></li>
       <li><span class="inum">2</span><div>Scroll down and tap <b>Add to Home Screen</b> <span class="iico">${ADD_ICO}</span>, then <b>Add</b>.</div></li>
       <li><span class="inum">3</span><div>Close Safari and open <b>IFPM</b> from the new icon on your Home Screen.</div></li></ol>
-    <div class="iarrow" aria-hidden="true">↓</div>`;
+    <div class="iarrow" aria-hidden="true">${ic('down')}</div>`;
   else steps = `<button id="inst-go" class="primary big ${installEvt ? '' : 'hidden'}" data-act="inst-go">Install IFPM</button>
     <ol class="isteps">
       <li><span class="inum">1</span><div>Tap <b>⋮</b> at the top right of Chrome.</div></li>
@@ -574,8 +583,8 @@ function renderBoard() {
       <div class="legend">${s.segs.map(g => `<span class="${ui.status === g.id ? 'on' : ''}" data-act="status-filter" data-s="${esc(g.id)}"><i style="background:${g.color}"></i>${esc(g.name)} <b>${g.n}</b></span>`).join('')}</div>
     </div>
     <div class="chips">${chips.map(([k, n]) => `<button class="${ui.filter === k ? 'on' : ''}" data-act="filter" data-f="${k}">${n}</button>`).join('')}
-      ${ui.person ? `<button class="on person" data-act="person-clear">${av(ui.person, 'xs')}${esc(ui.person.split(' ')[0])} ✕</button>` : ''}
-      ${ui.status != null ? `<button class="on" data-act="status-filter" data-s="${esc(ui.status)}">${esc((labelOf(col, ui.status) || { name: 'No status' }).name)} ✕</button>` : ''}</div>
+      ${ui.person ? `<button class="on person" data-act="person-clear">${av(ui.person, 'xs')}${esc(ui.person.split(' ')[0])} ${ic('x')}</button>` : ''}
+      ${ui.status != null ? `<button class="on" data-act="status-filter" data-s="${esc(ui.status)}">${esc((labelOf(col, ui.status) || { name: 'No status' }).name)} ${ic('x')}</button>` : ''}</div>
     ${filtering() ? `<div class="muted small fhint">${shown.length} match${shown.length === 1 ? '' : 'es'}</div>` : ''}
     ${live.map(epCard).join('')}
     ${ungrouped.length ? `<div class="ep open"><div class="ep-h"><div class="ep-t"><b>No episode</b></div></div><div class="rows">${ungrouped.map(i => rowHtml(p, i, col)).join('')}</div></div>` : ''}
@@ -594,7 +603,7 @@ function rowHtml(p, i, col) {
   return `<div class="row ${dn ? 'done' : ''}" data-act="item" data-id="${esc(i.id)}">
     <div class="r1">${perf ? `<span class="perf">${esc(perf)}</span>` : ''}<span class="nm">${esc(i.name || 'Untitled')}</span></div>
     <div class="r2">${spill(labelOf(col, col && i['c_' + col.id]), true)}${dc ? dpill(i['c_' + dc.id], dateDone(p, dc, i) || taped(p, i), dateTone(p, dc)) : ''}
-      ${subs.length ? `<span class="meta">${subDone}/${subs.length}</span>` : ''}${nUpd ? `<span class="meta">💬 ${nUpd}</span>` : ''}
+      ${subs.length ? `<span class="meta">${subDone}/${subs.length}</span>` : ''}${nUpd ? `<span class="meta">${ic('chat')} ${nUpd}</span>` : ''}
       <span class="spacer"></span><span class="avs">${who.slice(0, 3).map(n => av(n, 'xs')).join('')}${who.length > 3 ? `<span class="av xs more">+${who.length - 3}</span>` : ''}</span></div>
   </div>`;
 }
@@ -740,7 +749,7 @@ function fieldRow(p, c, it) {
   else if (c.type === 'date') val = v ? dpill(v, dateDone(p, c, it) || taped(p, it.parent ? S(p).get('item', it.parent) || it : it), dateTone(p, c)) : '<span class="faint">Set date</span>';
   else val = v ? esc(v) : '<span class="faint">—</span>';
   const dateIn = c.type === 'date' && !ro ? `<input type="date" class="overdate" data-date-col="${esc(c.id)}" data-id="${esc(it.id)}" value="${esc(v || '')}">` : '';
-  return `<div class="frow ${ro ? 'ro' : ''}" ${ro || c.type === 'date' ? '' : `data-act="edit-field" data-col="${esc(c.id)}" data-id="${esc(it.id)}"`}><span class="fl">${esc(c.name)}${ro ? ' 🔒' : ''}</span><span class="fv">${val}</span>${dateIn}</div>`;
+  return `<div class="frow ${ro ? 'ro' : ''}" ${ro || c.type === 'date' ? '' : `data-act="edit-field" data-col="${esc(c.id)}" data-id="${esc(it.id)}"`}><span class="fl">${esc(c.name)}${ro ? ' ' + ic('lock') : ''}</span><span class="fv">${val}</span>${dateIn}</div>`;
 }
 function renderSheet() {
   const p = cur, it = S(p).get('item', ui.item);
@@ -773,8 +782,8 @@ function composerHtml(key, placeholder) {
   const d = ui.draft;
   return `<div class="card composer">
     <textarea id="upd-text" rows="3" placeholder="${esc(placeholder)}">${esc(d.text)}</textarea>
-    ${d.files.length ? `<div class="thumbs">${d.files.map((f, i) => `<div class="th"><img src="${esc(f.url)}"><button data-act="rm-photo" data-i="${i}">✕</button></div>`).join('')}</div>` : ''}
-    <div class="crow"><label class="btn ghost small"><input type="file" accept="image/*" multiple data-photo hidden>📷 Photo</label>
+    ${d.files.length ? `<div class="thumbs">${d.files.map((f, i) => `<div class="th"><img src="${esc(f.url)}"><button data-act="rm-photo" data-i="${i}">${ic('x')}</button></div>`).join('')}</div>` : ''}
+    <div class="crow"><label class="btn ghost small"><input type="file" accept="image/*" multiple data-photo hidden>${ic('camera')} Photo</label>
       ${key === 'top' ? `<label class="imp"><input type="checkbox" id="upd-imp" ${d.important ? 'checked' : ''}> Important</label>` : ''}
       <span class="spacer"></span>${key !== 'top' ? '<button class="ghost small" data-act="reply-cancel">Cancel</button>' : ''}<button class="primary small" data-act="post" data-key="${esc(key)}">Post</button></div></div>`;
 }
@@ -784,7 +793,7 @@ function rxHtml(p, uid) {
   const rs = S(p).list('rx').filter(r => r.upd === uid);
   const pills = REACTS.map(e => { const who = rs.filter(r => r.e === e).map(r => r.who); return who.length ? `<button class="rxp ${who.includes(me.name) ? 'mine' : ''}" data-act="rx" data-id="${esc(uid)}" data-e="${e}">${e}<b>${who.length}</b></button>` : ''; }).join('');
   const open = ui.rxOpen === uid;
-  return `<div class="rxrow">${pills}${open ? `<span class="rxpick">${REACTS.map(e => `<button data-act="rx" data-id="${esc(uid)}" data-e="${e}">${e}</button>`).join('')}</span>` : `<button class="rxbtn" data-act="rx-open" data-id="${esc(uid)}" aria-label="React">☺<small>+</small></button>`}</div>`;
+  return `<div class="rxrow">${pills}${open ? `<span class="rxpick">${REACTS.map(e => `<button data-act="rx" data-id="${esc(uid)}" data-e="${e}">${e}</button>`).join('')}</span>` : `<button class="rxbtn" data-act="rx-open" data-id="${esc(uid)}" aria-label="React">${ic('smile')}<small>+</small></button>`}</div>`;
 }
 function updatesHtml(p, it, allU) {
   const acks = id => S(p).list('ack').filter(a => a.upd === id).map(a => a.who);
@@ -830,9 +839,11 @@ function briefHtml(p, it) {
       <div class="btext">${v ? linkify(v) : '<span class="faint">(removed)</span>'}</div>
       ${ch && was ? `<details><summary>What it said before</summary><div class="btext">${linkify(was)}</div></details>` : ''}</div>`;
   };
-  return `<div class="card"><div class="ch">Creative direction <span class="faint small">(team)</span></div>
-      <textarea id="dir-text" rows="3" placeholder="What we're going for.">${esc(it.direction || '')}</textarea>
-      <div style="text-align:right;margin-top:6px"><button class="primary small" data-act="dir-save">Save direction</button></div></div>
+  const refs = it.briefRefs || [];
+  if (refs.length) setTimeout(() => fillRefs(p, it.id), 0);
+  return `<div class="card"><div class="ch">Creative direction</div>
+      ${it.direction ? `<div class="btext">${linkify(it.direction)}</div>` : '<div class="muted small">No creative direction yet.</div>'}</div>
+    ${refs.length ? `<div class="card"><div class="ch">References</div><div class="mrefs" id="mrefs-${esc(it.id)}">${refs.map(r => `<div class="mref" data-rel="${esc(r.rel)}">${/\.pdf$/i.test(r.rel) ? ic('file') + `<span>${esc(r.name)}</span>` : ''}</div>`).join('')}</div></div>` : ''}
     ${b ? `<div class="card"><div class="ch">From Lisa’s grid <span class="faint small">synced ${esc(ago(b.syncedAt || 0))}</span></div>
       ${BRIEF_KEYS.map(([k, l]) => sec(l, k, b[k])).join('')}
       ${[...new Set([...Object.keys(b.screens || {}), ...Object.keys((prev && prev.screens) || {})])].map(k => sec(k, 'scr:' + k, (b.screens || {})[k])).join('')}</div>`
@@ -912,11 +923,11 @@ async function shrinkPhoto(file) {
 // ---------- viewer ----------
 function viewImage(src) {
   const v = $('#viewer');
-  v.innerHTML = `<img src="${esc(src)}"><button class="vclose" data-act="viewer-close">✕</button>`;
+  v.innerHTML = `<img src="${esc(src)}"><button class="vclose" data-act="viewer-close">${ic('x')}</button>`;
   v.classList.remove('hidden');
 }
 async function playVideo(rel, inBoard) {
-  try { const u = await be.fileUrl(cur, rel, inBoard); const v = $('#viewer'); v.innerHTML = `<video src="${esc(u)}" controls autoplay muted playsinline></video><button class="vclose" data-act="viewer-close">✕</button>`; v.classList.remove('hidden'); }
+  try { const u = await be.fileUrl(cur, rel, inBoard); const v = $('#viewer'); v.innerHTML = `<video src="${esc(u)}" controls autoplay muted playsinline></video><button class="vclose" data-act="viewer-close">${ic('x')}</button>`; v.classList.remove('hidden'); }
   catch (e) { toast('Couldn’t open that video'); }
 }
 
@@ -1008,7 +1019,7 @@ document.addEventListener('click', async e => {
       const id = d.id + '|' + d.e + '|' + me.id, on = !!S(p).get('rx', id);
       return write(p, 'rx', id, on ? { deleted: true } : { upd: d.id, e: d.e, who: me.name, deleted: false }, { noUndo: true });
     }
-    case 'dir-save': { const v = $('#dir-text').value.trim(); await write(p, 'item', ui.item, { direction: v || null }); return toast('Direction saved', true); }
+    case 'mref-open': { try { const u = await be.fileUrl(cur, d.rel, true); if (/\.pdf$/i.test(d.rel)) window.open(u, '_blank'); else viewImage(u); } catch { toast('Couldn’t open that file'); } return; }
     case 'view': return viewImage(t.src);
     case 'play': return playVideo(d.src, d.board === '1');
     case 'viewer-close': $('#viewer').classList.add('hidden'); $('#viewer').innerHTML = ''; return;

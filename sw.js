@@ -1,7 +1,7 @@
 // IFPM phone: keep the app itself available offline, and show notifications sent by the team's sender computer.
 // Board data always comes fresh from Dropbox.
-const CACHE = 'ifpm-phone-mwoi0d31';
-const SHELL = ['./', 'index.html', 'm.css', 'm.js', 'backend.js', 'state.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-180.png'];
+const CACHE = 'ifpm-phone-mwpgf9tm';
+const SHELL = ['./', 'index.html', 'm.css', 'm.js', 'backend.js', 'state.js', 'icons.js', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE && k !== 'ifpm-badge').map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
