@@ -210,7 +210,21 @@ async function heartbeat() {
   if (!cur || !me) return;
   const st = S(cur), seen = {};
   for (const u of st.users()) seen[u.id] = st.lastSeq(u.id);
-  be.writePresence(cur, me.id, { id: me.id, name: me.name, ts: Date.now(), seen, viewing: true, device: 'phone' });
+  be.writePresence(cur, me.id, { id: me.id, name: me.name, ts: Date.now(), seen, viewing: true, device: 'phone', read: phoneRead(cur) });
+}
+// Items opened on this phone (last 60 days), shared in its "who's here" file so the desktop Inbox clears them too
+function phoneRead(p) {
+  let all = {}; try { all = JSON.parse(localStorage.getItem('ifpm.read') || '{}'); } catch { }
+  const out = {}, cut = Date.now() - 60 * 864e5;
+  for (const [id, t] of Object.entries(all[p] || {})) if (t > cut) out[id] = t;
+  return out;
+}
+function notePhoneRead(p, id) {
+  let all = {}; try { all = JSON.parse(localStorage.getItem('ifpm.read') || '{}'); } catch { }
+  const it = S(p).get('item', id), top = it && it.parent ? it.parent : id;
+  (all[p] = all[p] || {})[top] = Date.now();
+  try { localStorage.setItem('ifpm.read', JSON.stringify(all)); } catch { }
+  clearTimeout(notePhoneRead.t); notePhoneRead.t = setTimeout(heartbeat, 1500);
 }
 
 // ---------- notifications on this phone ----------
@@ -739,7 +753,15 @@ function renderActivity() {
 }
 
 // ---------- item sheet ----------
-function openItem(id) { ui.item = id; ui.itab = 'updates'; ui.draft = { text: '', files: [], important: false }; ui.replyTo = null; render(); $('#sheet').scrollTop = 0; }
+function openItem(id) {
+  if (cur) {                     // for the New tags: when did I last look at it (on this phone, or by doing something on it anywhere)
+    const it = S(cur).get('item', id), top = it && it.parent ? it.parent : id;
+    let mine = 0;
+    for (const o of S(cur).ops) if (o.f && isMe(cur, o.u) && (o.id === top || o.id === id || (o.t === 'upd' && o.f.item && (o.f.item === top || o.f.item === id))) && o.ts > mine) mine = o.ts;
+    ui.seenBase = Math.max(phoneRead(cur)[top] || 0, mine) || null;
+    notePhoneRead(cur, id);
+  }
+  ui.editing = null; ui.item = id; ui.itab = 'updates'; ui.draft = { text: '', files: [], important: false }; ui.replyTo = null; render(); $('#sheet').scrollTop = 0; }
 function closeSheet() { ui.item = null; $('#sheet').classList.add('hidden'); $('#sheet').innerHTML = ''; }
 function fieldRow(p, c, it) {
   const v = it['c_' + c.id], ro = !canEdit(c);
@@ -802,18 +824,22 @@ function updatesHtml(p, it, allU) {
     const a = acks(u.id), needAck = u.important && !isMe(p, u._by) && !a.includes(me.name);
     return `<div class="upd ${isReply ? 'reply' : ''} ${u.important ? 'important' : ''}">
       <div class="uh">${av(S(p).name(u._by), 'sm')}<b>${esc(S(p).name(u._by))}</b>${sub ? `<span class="chip">${esc(sub.name)}</span>` : ''}<span class="faint small">${esc(ago(u._at))}</span>
-        ${isMe(p, u._by) ? `<span class="spacer"></span><button class="ghost tiny" data-act="del-upd" data-id="${esc(u.id)}">Delete</button>` : ''}</div>
+        ${!isMe(p, u._by) && ui.seenBase && u._at > ui.seenBase ? '<span class="unew">New</span>' : ''}${u.editedAt ? '<span class="faint small">· edited</span>' : ''}
+        ${isMe(p, u._by) ? `<span class="spacer"></span>${ui.editing === u.id ? '' : `<button class="ghost tiny" data-act="upd-edit" data-id="${esc(u.id)}">Edit</button>`}<button class="ghost tiny" data-act="del-upd" data-id="${esc(u.id)}">Delete</button>` : ''}</div>
       ${u.important ? `<div class="impbar"><b>Important</b>${needAck ? `<button class="primary tiny" data-act="ack" data-id="${esc(u.id)}">Got it</button>` : ''}<span class="small">${a.length ? 'Seen by ' + a.map(esc).join(', ') : 'Not acknowledged yet'}</span></div>` : ''}
-      ${u.text ? `<div class="ut">${tagify(p, linkify(u.text))}</div>` : ''}
+      ${ui.editing === u.id ? `<div class="uedit"><textarea id="ued-text" rows="4">${esc(u.text || '')}</textarea><div class="crow"><span class="spacer"></span><button class="ghost small" data-act="upd-edit-cancel">Cancel</button><button class="primary small" data-act="upd-edit-save" data-id="${esc(u.id)}">Save</button></div></div>`
+        : u.text ? `<div class="ut">${tagify(p, linkify(u.text))}</div>` : ''}
       ${(u.files || []).length || (u.refs || []).length ? `<div class="thumbs">${(u.files || []).map(f => mediaThumb(p, f, true)).join('')}${(u.refs || []).map(f => mediaThumb(p, f, false)).join('')}</div>` : ''}
       ${rxHtml(p, u.id)}
     </div>`;
   };
-  const tops = allU.filter(u => !u.parent).sort((a, b) => b._at - a._at);
+  // a thread moves to the top when it gets a new reply
+  const lastAct = u => allU.reduce((mx, r) => r.parent === u.id && r._at > mx ? r._at : mx, u._at);
+  const tops = allU.filter(u => !u.parent).sort((a, b) => lastAct(b) - lastAct(a));
   const replies = id => allU.filter(u => u.parent === id).sort((a, b) => a._at - b._at);
   return `${ui.replyTo ? '' : composerHtml('top', 'Write an update… @name to ping someone')}
-    ${tops.map(u => `<div class="thread">${one(u)}${replies(u.id).map(r => one(r, true)).join('')}
-      ${ui.replyTo === u.id ? composerHtml('r:' + u.id, 'Reply…') : `<button class="ghost tiny replybtn" data-act="reply" data-id="${esc(u.id)}">Reply</button>`}</div>`).join('') || '<div class="muted small pad">No updates yet.</div>'}`;
+    ${tops.map(u => { const nr = replies(u.id).filter(r => !isMe(p, r._by) && ui.seenBase && r._at > ui.seenBase).length; return `<div class="thread ${nr || (!isMe(p, u._by) && ui.seenBase && u._at > ui.seenBase) ? 'hasnew' : ''}">${nr ? `<div class="newrep">${nr === 1 ? 'New reply' : nr + ' new replies'} below</div>` : ''}${one(u)}${replies(u.id).map(r => one(r, true)).join('')}
+      ${ui.replyTo === u.id ? composerHtml('r:' + u.id, 'Reply…') : `<button class="ghost tiny replybtn" data-act="reply" data-id="${esc(u.id)}">Reply</button>`}</div>`; }).join('') || '<div class="muted small pad">No updates yet.</div>'}`;
 }
 // Images load through a temporary link; data-src gets swapped in by hydrate().
 function mediaThumb(p, rel, inBoard) {
@@ -1016,6 +1042,16 @@ document.addEventListener('click', async e => {
       return toast('Posted');
     }
     case 'del-upd': if (!confirm('Delete this update?')) return; return write(p, 'upd', d.id, { deleted: true });
+    case 'upd-edit': { const u = S(p).get('upd', d.id); if (!u || !isMe(p, u._by)) return; ui.editing = d.id; render(); const ta = $('#ued-text'); if (ta) ta.focus(); return; }
+    case 'upd-edit-cancel': ui.editing = null; return render();
+    case 'upd-edit-save': {
+      const u = S(p).get('upd', d.id), ta = $('#ued-text'); if (!u || !ta || !isMe(p, u._by)) return;
+      const text = ta.value.replace(/\s+$/, '');
+      if (!text && !(u.files || []).length && !(u.refs || []).length) return toast('A note needs some text or a picture. Use Delete to remove it.');
+      ui.editing = null; ta.blur();
+      if (text === (u.text || '')) return render();
+      return write(p, 'upd', d.id, { text, editedAt: Date.now() });
+    }
     case 'ack': return write(p, 'ack', d.id + '|' + me.id, { upd: d.id, who: me.name, deleted: false }, { noUndo: true });
     case 'rx-open': saveDraft(); ui.rxOpen = d.id; return renderSheet(), hydrate();
     case 'rx': {

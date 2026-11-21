@@ -300,3 +300,9 @@ button.big:disabled { opacity: .45; }
 .mpages { display: flex; flex-direction: column; gap: 8px; }
 .mref.mpage { aspect-ratio: auto; min-height: 120px; padding: 0; }
 .mref.mpage img { height: auto; object-fit: contain; }
+
+.unew { background: var(--accent); color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; }
+.uedit textarea { width: 100%; box-sizing: border-box; }
+.uedit .crow { display: flex; gap: 6px; margin-top: 6px; }
+.thread.hasnew { box-shadow: inset 3px 0 0 var(--accent); }
+.newrep { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 4px; }
