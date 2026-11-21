@@ -417,8 +417,8 @@ async function setMe(n) {
 }
 
 // Brief references (added by admins on the desktop): thumbnails come straight from Dropbox.
-async function fillRefs(p, itemId) {
-  const box = document.getElementById('mrefs-' + itemId); if (!box) return;
+async function fillRefs(p, itemId, boxId) {
+  const box = document.getElementById(boxId || 'mrefs-' + itemId); if (!box) return;
   for (const el of box.querySelectorAll('.mref')) {
     el.dataset.act = 'mref-open';
     if (/\.pdf$/i.test(el.dataset.rel)) continue;
@@ -841,8 +841,13 @@ function briefHtml(p, it) {
   };
   const refs = it.briefRefs || [];
   if (refs.length) setTimeout(() => fillRefs(p, it.id), 0);
+  // the creative deck pages an admin confirmed for this performance (split from Lisa's / Canva PDFs on the desktop)
+  const dpages = Object.values(it.deckPages || {}).filter(r => r && r.state !== 'guess' && (r.picks || []).length)
+    .flatMap(r => r.picks.map(n => `decks/${r.sha}/p${String(n).padStart(3, '0')}.jpg`));
+  if (dpages.length) setTimeout(() => fillRefs(p, it.id, 'mpages-' + it.id), 0);
   return `<div class="card"><div class="ch">Creative direction</div>
       ${it.direction ? `<div class="btext">${linkify(it.direction)}</div>` : '<div class="muted small">No creative direction yet.</div>'}</div>
+    ${dpages.length ? `<div class="card"><div class="ch">Creative pages</div><div class="mpages" id="mpages-${esc(it.id)}">${dpages.map(r => `<div class="mref mpage" data-rel="${esc(r)}"></div>`).join('')}</div></div>` : ''}
     ${refs.length ? `<div class="card"><div class="ch">References</div><div class="mrefs" id="mrefs-${esc(it.id)}">${refs.map(r => `<div class="mref" data-rel="${esc(r.rel)}">${/\.pdf$/i.test(r.rel) ? ic('file') + `<span>${esc(r.name)}</span>` : ''}</div>`).join('')}</div></div>` : ''}
     ${b ? `<div class="card"><div class="ch">From Lisa’s grid <span class="faint small">synced ${esc(ago(b.syncedAt || 0))}</span></div>
       ${BRIEF_KEYS.map(([k, l]) => sec(l, k, b[k])).join('')}
